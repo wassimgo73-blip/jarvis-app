@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>JARVIS</title>
+<meta name="theme-color" content="#03080f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="JARVIS">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+  :root { --bg: #03080f; --panel: rgba(6, 22, 36, 0.85); --line: rgba(0, 229, 255, 0.28); --cyan: #00e5ff;
+          --soft: #6ff3ff; --text: #d6f3ff; --muted: #6a93ab; --hot: #ff5a6e;
+          --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: radial-gradient(ellipse at 50% 30%, rgba(0,140,190,.22), transparent 60%), var(--bg);
+               color: var(--text); font: 16px/1.4 "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+  body { display: flex; flex-direction: column; padding-top: var(--safe-top); padding-bottom: var(--safe-bottom); overflow: hidden; }
+  header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; }
+  .title { font-weight: 800; letter-spacing: .35em; color: var(--cyan); text-shadow: 0 0 14px rgba(0,229,255,.6); }
+  .status { font-size: 11px; letter-spacing: .15em; color: var(--muted); }
+  .status b { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
+  .status.ok b { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+  .iconbtn { background: none; border: 1px solid var(--line); color: var(--soft); border-radius: 10px; padding: 7px 11px; font-size: 16px; }
+  .orbwrap { display: flex; flex-direction: column; align-items: center; padding: 6px 0 4px; }
+  .orb { width: 132px; height: 132px; border-radius: 50%; position: relative; border: 0; background: none; padding: 0; }
+  .orb::before, .orb::after { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px dashed rgba(0,229,255,.55); animation: spin 14s linear infinite; }
+  .orb::after { inset: 14px; border: 3px solid rgba(111,243,255,.35); border-style: dotted; animation-duration: 8s; animation-direction: reverse; }
+  .core { position: absolute; inset: 32px; border-radius: 50%; background: radial-gradient(circle, #e8fdff 0 18%, #00e5ff 40%, rgba(0,229,255,0) 72%);
+          animation: breathe 3s ease-in-out infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes breathe { 50% { transform: scale(.9); opacity: .8; } }
+  .orb.listening .core { animation: breathe .8s ease-in-out infinite; }
+  .orb.thinking::before { animation-duration: 1.4s; }
+  .orb.speaking .core { animation: pulse .45s ease-in-out infinite; }
+  @keyframes pulse { 50% { transform: scale(1.12); } }
+  .state { margin-top: 8px; font-size: 12px; letter-spacing: .45em; color: var(--cyan); }
+  .log { flex: 1; overflow-y: auto; padding: 8px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { padding: 9px 12px; border-radius: 12px; max-width: 88%; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.you { align-self: flex-end; background: rgba(0,229,255,.12); border: 1px solid var(--line); }
+  .msg.jarvis { align-self: flex-start; background: var(--panel); border-left: 3px solid var(--cyan); }
+  .msg.tool { align-self: flex-start; font-size: 12px; color: var(--muted); padding: 2px 10px; }
+  .msg[dir="rtl"] { text-align: right; }
+  .bar { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); background: rgba(3,8,15,.9); }
+  .bar input { flex: 1; min-width: 0; background: rgba(0,20,32,.9); border: 1px solid var(--line); border-radius: 22px; color: var(--text);
+               padding: 11px 16px; font: inherit; outline: none; }
+  .mic { width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--cyan); background: rgba(0,30,46,.8); color: var(--soft); font-size: 20px; flex: none; }
+  .mic.on { background: var(--cyan); color: #00222b; box-shadow: 0 0 22px var(--cyan); }
+  .send { border-radius: 22px; border: 1px solid var(--line); background: rgba(0,30,46,.8); color: var(--soft); padding: 0 16px; font-weight: 600; }
+  [hidden] { display: none !important; }
+  .sheet { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: flex-end; z-index: 10; }
+  .sheet .card { width: 100%; max-height: 92%; overflow-y: auto; background: #071624; border-top: 1px solid var(--cyan); border-radius: 18px 18px 0 0;
+                 padding: 18px 18px calc(18px + var(--safe-bottom)); }
+  .card h2 { margin: 0 0 4px; color: var(--cyan); font-size: 18px; }
+  .card p { color: var(--muted); font-size: 13px; margin: 4px 0 12px; }
+  .card label { display: block; font-size: 13px; color: var(--soft); margin: 12px 0 4px; }
+  .card input, .card select { width: 100%; background: #021019; border: 1px solid var(--line); border-radius: 10px; color: var(--text); padding: 10px 12px; font: inherit; }
+  .card .row { display: flex; gap: 10px; margin-top: 16px; }
+  .card button { flex: 1; padding: 12px; border-radius: 12px; border: 1px solid var(--cyan); background: rgba(0,229,255,.15); color: #fff; font-weight: 700; font: inherit; }
+  .toast { position: fixed; left: 50%; bottom: calc(86px + var(--safe-bottom)); transform: translateX(-50%); background: rgba(40,10,16,.95);
+           border: 1px solid var(--hot); color: #ffd1d7; padding: 9px 14px; border-radius: 10px; font-size: 14px; max-width: 90%; z-index: 20; }
+</style>
+</head>
+<body>
+<header>
+  <div><div class="title">J.A.R.V.I.S.</div><div class="status" id="status"><b></b><span>NOT SET UP</span></div></div>
+  <button class="iconbtn" id="openSettings" aria-label="Settings">⚙</button>
+</header>
+<div class="orbwrap">
+  <button class="orb" id="orb" aria-label="Talk to JARVIS"><span class="core"></span></button>
+  <div class="state" id="state">STANDBY</div>
+</div>
+<div class="log" id="log"></div>
+<form class="bar" id="bar" autocomplete="off">
+  <button type="button" class="mic" id="mic" aria-label="Speak">🎙</button>
+  <input id="input" placeholder="Ask JARVIS…" enterkeyhint="send">
+  <button class="send" type="submit">Send</button>
+</form>
+
+<div class="sheet" id="settings" hidden>
+  <div class="card">
+    <h2>Settings</h2>
+    <p>Keys are stored only on this phone, never in GitHub.</p>
+    <label>Groq API key (console.groq.com/keys)</label><input id="sGroq" type="password" placeholder="gsk_…">
+    <label>GitHub token (to save your data)</label><input id="sGh" type="password" placeholder="ghp_… or github_pat_…">
+    <label>GitHub data repository (owner/name)</label><input id="sRepo" placeholder="yourname/jarvis-data">
+    <label>Home city</label><input id="sCity" placeholder="Algiers">
+    <label>JARVIS speaks</label>
+    <select id="sVoice"><option value="1">Yes</option><option value="0">No (text only)</option></select>
+    <div class="row"><button type="button" id="saveSettings">Save</button><button type="button" id="closeSettings">Close</button></div>
+  </div>
+</div>
+
+<script>
+/* JARVIS Mobile: the brain (Groq) is called straight from the phone, so it works anywhere,
+   even with the PC off. Every conversation and note is saved to the user's private GitHub
+   repository, in the same folders as the Obsidian vault, so phone and PC share one memory. */
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k, d = "") { try { return localStorage.getItem("jarvis." + k) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("jarvis." + k, v); } catch {} },
+};
+const cfg = () => ({ groq: store.get("groq"), gh: store.get("gh"), repo: store.get("repo"),
+                     city: store.get("city", "Algiers"), voice: store.get("voice", "1") === "1" });
+const MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"];
+const restUntil = {};  // model -> time it may be used again after hitting its free limit
+
+/* ---------- UI helpers ---------- */
+function setState(s, label) { $("orb").className = "orb " + s; $("state").textContent = label; }
+function toast(t) { const d = document.createElement("div"); d.className = "toast"; d.textContent = t; document.body.appendChild(d); setTimeout(() => d.remove(), 5000); }
+function addMsg(who, text) {
+  const d = document.createElement("div"); d.className = "msg " + who; d.textContent = text;
+  if (/[؀-ۿ]/.test(text)) d.dir = "rtl";
+  $("log").appendChild(d); $("log").scrollTop = $("log").scrollHeight; return d;
+}
+function refreshStatus() {
+  const c = cfg(), ok = !!c.groq;
+  $("status").className = "status" + (ok ? " ok" : "");
+  $("status").querySelector("span").textContent = !ok ? "ADD YOUR GROQ KEY IN ⚙" : c.gh && c.repo ? "ONLINE · SAVING TO GITHUB" : "ONLINE · NOT SAVING (NO GITHUB)";
+}
+
+/* ---------- GitHub storage ---------- */
+const b64encode = (s) => { const b = new TextEncoder().encode(s); let bin = ""; b.forEach(x => bin += String.fromCharCode(x)); return btoa(bin); };
+const b64decode = (s) => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\n/g, "")), c => c.charCodeAt(0)));
+async function gh(path, opts = {}) {
+  const c = cfg();
+  const r = await fetch(`https://api.github.com/repos/${c.repo}/${path}`, { ...opts, headers: {
+    Authorization: `Bearer ${c.gh}`, Accept: "application/vnd.github+json", "Content-Type": "application/json" } });
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error(`GitHub ${r.status}: ${(await r.text()).slice(0, 120)}`);
+  return r.json();
+}
+async function readFile(path) {
+  const f = await gh("contents/" + encodeURIComponent(path).replace(/%2F/g, "/"));
+  return f ? { text: b64decode(f.content), sha: f.sha } : { text: null, sha: null };
+}
+// Writes go through a queue (one at a time) and an outbox that survives offline moments
+let writing = Promise.resolve();
+function queueWrite(path, update, message) {
+  const outbox = JSON.parse(store.get("outbox", "[]"));
+  outbox.push({ path, add: update, message, at: Date.now() });
+  store.set("outbox", JSON.stringify(outbox));
+  writing = writing.then(flushOutbox).catch(() => {});
+  return writing;
+}
+async function flushOutbox() {
+  const c = cfg();
+  if (!c.gh || !c.repo) return;
+  let outbox = JSON.parse(store.get("outbox", "[]"));
+  while (outbox.length) {
+    const job = outbox[0];
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const cur = await readFile(job.path);
+        const text = (cur.text ?? job.add.header ?? "") + job.add.append;
+        await gh("contents/" + encodeURIComponent(job.path).replace(/%2F/g, "/"), { method: "PUT",
+          body: JSON.stringify({ message: job.message, content: b64encode(text), ...(cur.sha ? { sha: cur.sha } : {}) }) });
+        break;
+      } catch (e) {
+        if (attempt === 2) { console.warn(e); return; }  // stays in the outbox; retried next time
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+    outbox.shift(); store.set("outbox", JSON.stringify(outbox));
+  }
+}
+const today = () => new Date().toISOString().slice(0, 10);
+const nowTime = () => new Date().toTimeString().slice(0, 5);
+function saveExchange(you, reply) {
+  return queueWrite(`Conversations/${today()}.md`,
+    { header: `---\ntags: [jarvis, conversation, phone]\n---\n# Conversations ${today()}\n\n`,
+      append: `**${nowTime()} You (phone):** ${you}\n\n**JARVIS:** ${reply}\n\n` },
+    `JARVIS phone conversation ${today()} ${nowTime()}`);
+}
+let treeCache = null;
+async function vaultPaths() {
+  if (treeCache && Date.now() - treeCache.at < 60000) return treeCache.paths;
+  const repo = await gh("");
+  const tree = await gh(`git/trees/${repo.default_branch}?recursive=1`);
+  const paths = (tree?.tree || []).filter(t => t.type === "blob" && t.path.endsWith(".md")).map(t => t.path);
+  treeCache = { at: Date.now(), paths };
+  return paths;
+}
+
+/* ---------- tools JARVIS can use on the phone ---------- */
+const FOLDERS = ["Notes", "Research", "Decisions", "Plans", "Agency"];
+const TOOLS = {
+  async get_weather({ place }) {
+    const g = await (await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(place || cfg().city)}&count=1`)).json();
+    const p = g.results?.[0]; if (!p) return `Couldn't find ${place}.`;
+    const w = await (await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.latitude}&longitude=${p.longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=3`)).json();
+    return JSON.stringify({ place: `${p.name}, ${p.country}`, now: w.current, next_days: w.daily });
+  },
+  async find_places({ place, kind = "restaurant", cuisine = "" }) {
+    const g = await (await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(place || cfg().city)}&format=json&limit=1`)).json();
+    if (!g[0]) return `Couldn't find ${place}.`;
+    const amenity = { restaurant: "restaurant", cafe: "cafe", pharmacy: "pharmacy", hospital: "hospital", bank: "bank", atm: "atm", fuel: "fuel" }[kind] || "restaurant";
+    const q = `[out:json][timeout:25];nwr["amenity"="${amenity}"](around:2500,${g[0].lat},${g[0].lon});out center tags 40;`;
+    const r = await fetch("https://overpass-api.de/api/interpreter", { method: "POST", body: "data=" + encodeURIComponent(q) });
+    if (!r.ok) return "The map service is busy. Try again in a minute.";
+    const items = (await r.json()).elements.map(e => e.tags || {}).filter(t => t.name)
+      .filter(t => !cuisine || (t.cuisine || "").includes(cuisine.toLowerCase()) || t.name.toLowerCase().includes(cuisine.toLowerCase()))
+      .map(t => ({ name: t["name:fr"] || t.name, cuisine: t.cuisine, phone: t.phone || t["contact:phone"] || null, hours: t.opening_hours || null }))
+      .sort((a, b) => (b.phone ? 1 : 0) - (a.phone ? 1 : 0)).slice(0, 8);
+    return items.length ? JSON.stringify(items) : `No ${kind} found near ${place}.`;
+  },
+  async wikipedia({ query, lang = "en" }) {
+    const s = await (await fetch(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&format=json&origin=*&srlimit=1&srsearch=${encodeURIComponent(query)}`)).json();
+    const title = s.query?.search?.[0]?.title; if (!title) return "Nothing found.";
+    const p = await (await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`)).json();
+    return `${p.title}: ${p.extract}`.slice(0, 1500);
+  },
+  async open_link({ url }) { window.open(/^https?:/.test(url) ? url : "https://" + url, "_blank"); return "Opened."; },
+  async whatsapp({ phone, message }) {
+    const digits = (phone || "").replace(/\D/g, "").replace(/^00/, "").replace(/^0(\d{9})$/, "213$1");
+    window.open(`https://wa.me/${digits}?text=${encodeURIComponent(message)}`, "_blank");
+    return "Opened WhatsApp with the message ready; the user presses Send.";
+  },
+  async save_note({ title, content, folder = "Notes" }) {
+    if (!cfg().gh) return "Error: GitHub isn't set up in settings, so nothing can be saved.";
+    const f = FOLDERS.includes(folder) ? folder : "Notes";
+    const name = (title || "Untitled").replace(/[\\/:*?"<>|#^\[\]]+/g, " ").trim().slice(0, 90);
+    await queueWrite(`${f}/${name}.md`, { header: `---\ntags: [jarvis, ${f.toLowerCase()}, phone]\n---\n# ${title}\n\n`,
+                                         append: `${content}\n\n*(${today()} ${nowTime()}, phone)*\n\n` }, `JARVIS note: ${name}`);
+    treeCache = null;
+    return `Saved '${name}' in ${f}.`;
+  },
+  async search_notes({ query }) {
+    if (!cfg().gh) return "Error: GitHub isn't set up in settings.";
+    const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    const paths = (await vaultPaths()).filter(p => !p.startsWith("Project Maps/"));
+    const byName = paths.filter(p => words.some(w => p.toLowerCase().includes(w))).slice(0, 4);
+    const out = [];
+    for (const p of byName) { const f = await readFile(p); out.push(`${p}:\n${(f.text || "").slice(0, 900)}`); }
+    return out.length ? out.join("\n\n") : `No note titles match '${query}'. Notes: ${paths.slice(0, 30).join(", ")}`;
+  },
+};
+const fn = (name, description, props, required = Object.keys(props)) =>
+  ({ type: "function", function: { name, description, parameters: { type: "object", properties: props, required } } });
+const str = (description) => ({ type: "string", description });
+const TOOL_SCHEMAS = [
+  fn("get_weather", "Current weather and 3-day forecast for a place.", { place: str("City, e.g. Oran") }),
+  fn("find_places", "Find restaurants, cafes, pharmacies, hospitals, banks, ATMs or fuel near a place, with phone numbers.",
+     { place: str("Neighbourhood or city"), kind: str("restaurant, cafe, pharmacy, hospital, bank, atm or fuel"), cuisine: str("Optional, e.g. pizza") }, ["place", "kind"]),
+  fn("wikipedia", "Look up facts on Wikipedia.", { query: str("What to look up"), lang: str("en, fr or ar") }, ["query"]),
+  fn("open_link", "Open a website or link for the user to see. Only when asked to open, show or play something.", { url: str("URL") }),
+  fn("whatsapp", "Open WhatsApp with a message ready to send. Only after the user approved the exact recipient and message.",
+     { phone: str("Phone number"), message: str("Exact approved text") }),
+  fn("save_note", "Save a note to the user's vault on GitHub (adds to it if the title exists).",
+     { title: str("Note title"), content: str("Markdown content"), folder: str("Notes, Research, Decisions, Plans or Agency") }, ["title", "content"]),
+  fn("search_notes", "Search the user's saved notes, decisions, plans and agency documents.", { query: str("Words to look for") }),
+];
+const SYSTEM = () => `You are JARVIS, the user's witty, loyal AI assistant, here on their phone, in the style of Tony Stark's assistant (call them "sir" now and then). Replies are spoken aloud: one to three short sentences, no markdown or lists. Reply in the user's language (English, French or Arabic). Metric units. The user's home city is ${cfg().city}; they run a small web agency in Algeria. Use tools to act. Never claim something was done unless a tool result confirms it. Before using whatsapp, read back the recipient and message and wait for a clear yes. When the user asks to remember or save something, use save_note; for what they know or decided before, use search_notes. Open links only when asked.`;
+
+/* ---------- the brain ---------- */
+let history = [];  // compact: older turns as plain text
+async function complete(messages) {
+  const usable = MODELS.filter(m => (restUntil[m] || 0) < Date.now());
+  for (const [i, model] of (usable.length ? usable : MODELS.slice(-1)).entries()) {
+    const r = await fetch("https://api.groq.com/openai/v1/chat/completions", { method: "POST",
+      headers: { Authorization: `Bearer ${cfg().groq}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages, tools: TOOL_SCHEMAS, ...(model.includes("gpt-oss") ? { reasoning_effort: "low" } : {}) }) });
+    if (r.status === 429 && i < usable.length - 1) {
+      const wait = /try again in (?:(\d+)m)?([\d.]+)s/.exec(await r.text());
+      restUntil[model] = Date.now() + (wait ? (+(wait[1] || 0) * 60 + +wait[2]) * 1000 : 60000);
+      continue;
+    }
+    if (r.status === 401) throw new Error("The Groq key isn't valid. Check it in ⚙ settings.");
+    if (r.status === 429) throw new Error("JARVIS has used up its free AI allowance for now. Try again in a few minutes.");
+    if (!r.ok) throw new Error(`Groq error ${r.status}`);
+    return (await r.json()).choices[0].message;
+  }
+}
+async function ask(text) {
+  if (!cfg().groq) { $("settings").hidden = false; return toast("Add your Groq key first."); }
+  stopSpeaking();
+  addMsg("you", text);
+  setState("thinking", "PROCESSING");
+  const messages = [{ role: "system", content: SYSTEM() }, ...history.slice(-12),
+                    { role: "user", content: `${text}\n\n[Now: ${new Date().toString().slice(0, 21)}]` }];
+  try {
+    let reply = "";
+    for (let round = 0; round < 6; round++) {
+      const msg = await complete(messages);
+      if (!msg.tool_calls?.length) { reply = (msg.content || "").trim(); break; }
+      messages.push({ role: "assistant", content: msg.content || "", tool_calls: msg.tool_calls });
+      for (const call of msg.tool_calls) {
+        let args = {}; try { args = JSON.parse(call.function.arguments || "{}"); } catch {}
+        addMsg("tool", "⚙ " + call.function.name.replace(/_/g, " "));
+        let result;
+        try { result = await (TOOLS[call.function.name] || (async () => "Unknown tool."))(args); }
+        catch (e) { result = "Error: " + e.message; }
+        messages.push({ role: "tool", tool_call_id: call.id, content: String(result).slice(0, 3500) });
+      }
+    }
+    reply = reply || "I couldn't finish that one, sir.";
+    history.push({ role: "user", content: text }, { role: "assistant", content: reply });
+    addMsg("jarvis", reply);
+    if (cfg().gh && cfg().repo) saveExchange(text, reply);
+    await speak(reply);
+  } catch (e) {
+    addMsg("jarvis", e.message); toast(e.message);
+  }
+  setState("", "STANDBY");
+}
+
+/* ---------- voice out: the phone's own voice, sentence by sentence; tap the orb to stop ---------- */
+let speakToken = 0;
+function pickVoice(lang) {
+  const vs = speechSynthesis.getVoices();
+  return vs.find(v => v.lang.startsWith(lang) && /natural|premium|enhanced|google/i.test(v.name)) || vs.find(v => v.lang.startsWith(lang));
+}
+async function speak(text) {
+  if (!cfg().voice || !("speechSynthesis" in window)) return;
+  const token = ++speakToken;
+  const lang = /[؀-ۿ]/.test(text) ? "ar" : /\b(je|vous|est|les|une|des|pour)\b/i.test(text) ? "fr" : "en";
+  const parts = text.replace(/[*_`#>]+/g, "").match(/[^.!?؟]+[.!?؟]*/g) || [text];
+  setState("speaking", "SPEAKING");
+  for (const p of parts) {
+    if (token !== speakToken) return;
+    await new Promise(res => {
+      const u = new SpeechSynthesisUtterance(p.trim());
+      const v = pickVoice(lang); if (v) u.voice = v; u.lang = v?.lang || lang;
+      u.onend = u.onerror = res; speechSynthesis.speak(u);
+    });
+  }
+}
+function stopSpeaking() { speakToken++; if ("speechSynthesis" in window) speechSynthesis.cancel(); }
+
+/* ---------- voice in: record, stop on silence, Groq Whisper ---------- */
+let rec = null;
+async function startRecording() {
+  if (!cfg().groq) { $("settings").hidden = false; return toast("Add your Groq key first."); }
+  stopSpeaking();
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
+  catch { return toast("Microphone blocked. Allow it in your phone's browser settings."); }
+  const mime = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m)) || "";
+  const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
+  const chunks = []; mr.ondataavailable = e => e.data.size && chunks.push(e.data);
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const an = ctx.createAnalyser(); an.fftSize = 1024; ctx.createMediaStreamSource(stream).connect(an);
+  const buf = new Float32Array(an.fftSize);
+  let noise = 0.01, spoke = false, quietSince = 0;
+  const started = Date.now();
+  rec = { mr, stream, ctx };
+  $("mic").classList.add("on"); setState("listening", "LISTENING");
+  const timer = setInterval(() => {  // stop after ~0.8 s of quiet once speech started (15 s max)
+    an.getFloatTimeDomainData(buf);
+    let s = 0; for (const x of buf) s += x * x; const rms = Math.sqrt(s / buf.length);
+    if (!spoke) noise = Math.min(0.05, 0.95 * noise + 0.05 * rms);
+    if (rms > Math.max(noise * 3, 0.02)) { spoke = true; quietSince = 0; }
+    else if (spoke) { quietSince = quietSince || Date.now(); if (Date.now() - quietSince > 800) stopRecording(); }
+    if (Date.now() - started > 15000 || (!spoke && Date.now() - started > 8000)) stopRecording();
+  }, 100);
+  mr.onstop = async () => {
+    clearInterval(timer); stream.getTracks().forEach(t => t.stop()); ctx.close();
+    $("mic").classList.remove("on");
+    if (!spoke || !chunks.length) { setState("", "STANDBY"); return toast("I didn't hear anything."); }
+    setState("thinking", "TRANSCRIBING");
+    const blob = new Blob(chunks, { type: mr.mimeType || "audio/webm" });
+    const form = new FormData();
+    form.append("file", blob, blob.type.includes("mp4") ? "speech.m4a" : "speech.webm");
+    form.append("model", "whisper-large-v3-turbo");
+    form.append("prompt", "Hey Jarvis, what's the weather in Algiers? Note that for my agency.");
+    try {
+      const r = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", { method: "POST", headers: { Authorization: `Bearer ${cfg().groq}` }, body: form });
+      const text = ((await r.json()).text || "").trim();
+      if (text && !/^(you|thank you\.?|\.)$/i.test(text)) ask(text.replace(/^(hey\s+)?jarvis[\s,.!]*/i, "") || text);
+      else { setState("", "STANDBY"); toast("I didn't catch that."); }
+    } catch { setState("", "STANDBY"); toast("Couldn't reach the speech service."); }
+  };
+  mr.start(250);
+}
+function stopRecording() { if (rec && rec.mr.state === "recording") rec.mr.stop(); rec = null; }
+
+/* ---------- controls ---------- */
+$("mic").onclick = () => (rec ? stopRecording() : startRecording());
+$("orb").onclick = () => (speechSynthesis.speaking ? (stopSpeaking(), setState("", "STANDBY")) : rec ? stopRecording() : startRecording());
+$("bar").onsubmit = (e) => { e.preventDefault(); const v = $("input").value.trim(); $("input").value = ""; if (v) ask(v); };
+$("openSettings").onclick = () => {
+  const c = cfg(); $("sGroq").value = c.groq; $("sGh").value = c.gh; $("sRepo").value = c.repo; $("sCity").value = c.city; $("sVoice").value = c.voice ? "1" : "0";
+  $("settings").hidden = false;
+};
+$("closeSettings").onclick = () => ($("settings").hidden = true);
+$("saveSettings").onclick = async () => {
+  store.set("groq", $("sGroq").value.trim()); store.set("gh", $("sGh").value.trim());
+  store.set("repo", $("sRepo").value.trim().replace(/^https:\/\/github.com\//, "").replace(/\.git$/, ""));
+  store.set("city", $("sCity").value.trim() || "Algiers"); store.set("voice", $("sVoice").value);
+  $("settings").hidden = true; refreshStatus();
+  if (cfg().gh && cfg().repo) {
+    try { const r = await gh(""); toast(r ? `Connected to GitHub: ${r.full_name}` : "GitHub repository not found. Check the name."); flushOutbox(); }
+    catch (e) { toast(e.message); }
+  }
+};
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
+refreshStatus();
+if (!cfg().groq) $("settings").hidden = false;
+else addMsg("jarvis", "JARVIS online, sir. Tap the orb or the microphone to talk.");
+window.addEventListener("online", () => flushOutbox());
+</script>
+</body>
+</html>
